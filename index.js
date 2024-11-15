@@ -4,13 +4,14 @@ const cors = require("cors");
 const port = process.env.PORT || 5000;
 require("dotenv").config();
 
+// 29WSJ6mNGMRAq6a7
 //middleware
 app.use(cors());
 app.use(express.json());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@mujahid.frqpuda.mongodb.net/?retryWrites=true&w=majority&appName=Mujahid`;
-
+// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@mujahid.frqpuda.mongodb.net/?retryWrites=true&w=majority&appName=Mujahid`;
+const uri = "mongodb+srv://weTech:ypswHsVJgbO3gadh@cluster0.06pjy.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -22,15 +23,17 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    const courseCollection = client.db("project_1").collection("lessons");
-    const cartCollection = client.db("project_1").collection("carts");
-    const orderCollection = client.db("project_1").collection("orders");
+    // const courseCollection = client.db("project_1").collection("lessons");
+    // const cartCollection = client.db("project_1").collection("carts");
+    // const orderCollection = client.db("project_1").collection("orders");
+    const courseCollection = client.db("weTech").collection("lessons");
+    const cartCollection = client.db("weTech").collection("carts");
+    const orderCollection = client.db("weTech").collection("orders");
 
     // Logger middleware
     app.use((req, res, next) => {
-      const logDetails = `Method: ${req.method}, URL: ${
-        req.originalUrl
-      }, Time: ${new Date().toISOString()}`;
+      const logDetails = `Method: ${req.method}, URL: ${req.originalUrl
+        }, Time: ${new Date().toISOString()}`;
       console.log(logDetails); // Log to the console
       next(); // Pass control to the next middleware
     });
@@ -52,16 +55,8 @@ async function run() {
       const lessonId = cartData.lesson_id;
 
       try {
-        const findPreAdd = await cartCollection.findOne({
-          lesson_id: lessonId,
-        });
 
-        let insertResult = null;
-        if (findPreAdd) {
-          return res.send(null);
-        } else {
-          insertResult = await cartCollection.insertOne(cartData);
-        }
+        insertResult = await cartCollection.insertOne(cartData);
         if (insertResult.acknowledged) {
           const updateResult = await courseCollection.updateOne(
             { _id: new ObjectId(lessonId) },
@@ -86,7 +81,7 @@ async function run() {
 
     app.delete("/cart/:id", async (req, res) => {
       const id = req.params.id;
-      const result = await cartCollection.deleteOne({ lesson_id: id });
+      const result = await cartCollection.deleteOne({ _id: new ObjectId(id) });
       if (result.deletedCount > 0) {
         const updateResult = await courseCollection.updateOne(
           { _id: new ObjectId(id) },
