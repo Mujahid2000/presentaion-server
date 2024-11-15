@@ -40,6 +40,28 @@ async function run() {
       const result = await courseCollection.find().toArray();
       res.send(result);
     });
+    // put ==> update lesson update
+    app.put("/lessons/:id", async (req, res) => {
+      const id = req.params.id;
+      const findLesson = await courseCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      if (!findLesson) {
+        return res.status(404).send({ message: "Lesson not found" });
+      }
+      const updatedData = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: false };
+      const updateDoc = {
+        $set: updatedData,
+      };
+      const result = await courseCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
 
     app.get("/search", async (req, res) => {
       const result = await courseCollection.find().toArray();
@@ -51,25 +73,35 @@ async function run() {
       const cartData = req.body;
       const lessonId = cartData.lesson_id;
       console.log("Lesson ID received:", lessonId);
-    
+
       try {
         // কোর্স ডেটা ফেচ করে নিশ্চিত করি লেসনটি আছে কিনা
-        const course = await courseCollection.findOne({ _id: new ObjectId(lessonId) });
-    
+        const course = await courseCollection.findOne({
+          _id: new ObjectId(lessonId),
+        });
+
         if (!course) {
           return res.status(404).send({ error: "Course not found." });
         }
-    
+
         // কার্টে চেক করি লেসনটি আগে থেকেই আছে কিনা
-        const existingCartItem = await cartCollection.findOne({ lesson_id: lessonId });
-    
+        const existingCartItem = await cartCollection.findOne({
+          lesson_id: lessonId,
+        });
+
         if (existingCartItem) {
           // যদি লেসনটি কার্টে থাকে, তাহলে শুধু space ১ যোগ করি
           const updateResult = await cartCollection.updateOne(
             { lesson_id: lessonId },
             { $inc: { space: 1 } }
           );
-    
+          // decrement from lesson
+          const updateLesson = await courseCollection.updateOne(
+            { _id: new ObjectId(lessonId) },
+            {
+              $inc: { space: -1 },
+            }
+          );
           return res.send({
             message: "Lesson already exists in the cart. Space incremented.",
             cartUpdateResult: updateResult,
@@ -81,53 +113,60 @@ async function run() {
             image: cartData.image,
             subject: cartData.subject,
             location: cartData.location,
+            price: cartData.price,
             space: 1, // নতুন স্পেস মান ১
           };
-    
+
           const insertResult = await cartCollection.insertOne(newCartItem);
-    
+
           if (insertResult.acknowledged) {
+            const updateLesson = await courseCollection.updateOne(
+              { _id: new ObjectId(lessonId) },
+              {
+                $inc: { space: -1 },
+              }
+            );
             return res.send({
               message: "New lesson added to the cart.",
               cartInsertResult: insertResult,
             });
           } else {
-            return res.status(500).send({ error: "Failed to insert data into the cart." });
+            return res
+              .status(500)
+              .send({ error: "Failed to insert data into the cart." });
           }
         }
       } catch (error) {
         console.error("Error:", error);
-        res.status(500).send({ error: "An error occurred while processing the request." });
+        res
+          .status(500)
+          .send({ error: "An error occurred while processing the request." });
       }
     });
-    
-    
-    
-    
 
     app.delete("/cart/:id", async (req, res) => {
       const id = req.params.id;
-    
+
       try {
         // কার্ট থেকে ডিলিট করার আগে ডকুমেন্টটি রিট্রিভ করুন
         const cartItem = await cartCollection.findOne({ lesson_id: id });
-    
+
         if (!cartItem) {
           return res.status(404).send({ error: "Cart item not found." });
         }
-    
+
         const spaceToAdd = cartItem.space || 0; // রিট্রিভ করা স্পেসের মান
-    
+
         // কার্ট থেকে ডকুমেন্ট ডিলিট করুন
         const result = await cartCollection.deleteOne({ lesson_id: id });
-    
+
         if (result.deletedCount > 0) {
           // কোর্স কালেকশনে স্পেস আপডেট করুন
           const updateResult = await courseCollection.updateOne(
             { _id: new ObjectId(id) },
             { $inc: { space: spaceToAdd } } // স্পেস যোগ করুন
           );
-    
+
           res.send({
             message: "Item deleted successfully and course space updated.",
             cartDeleteResult: result,
@@ -138,10 +177,11 @@ async function run() {
         }
       } catch (error) {
         console.error("Error:", error);
-        res.status(500).send({ error: "An error occurred while processing the request." });
+        res
+          .status(500)
+          .send({ error: "An error occurred while processing the request." });
       }
     });
-    
 
     app.get("/cart", async (req, res) => {
       const result = await cartCollection.find().toArray();
