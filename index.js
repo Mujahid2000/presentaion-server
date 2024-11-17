@@ -3,10 +3,33 @@ const app = express();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
 require("dotenv").config();
-
+const path = require("path");
 //middleware
 app.use(cors());
 app.use(express.json());
+
+// logger middleware
+app.use((req, res, next) => {
+  const logDetails = `Method: ${req.method}, URL: ${req.originalUrl}, Time: ${new Date().toISOString()}`;
+  console.log(logDetails); 
+  next(); 
+});
+
+// Static File Middleware for Lesson Images
+const imagesDir = path.join(__dirname, "./images"); 
+app.use("/images", express.static(imagesDir, {
+  fallthrough: false 
+}));
+
+// Middleware to handle errors when an image file is not found
+app.use((err, req, res, next) => {
+  if (err.status === 404) {
+    res.status(404).send({ error: "Image file not found" });
+  } else {
+    next(err); // Pass other errors to the next error handler
+  }
+});
+
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@mujahid.frqpuda.mongodb.net/?retryWrites=true&w=majority&appName=Mujahid`;
@@ -25,15 +48,10 @@ async function run() {
     const courseCollection = client.db("project_1").collection("lessons");
     const cartCollection = client.db("project_1").collection("carts");
     const orderCollection = client.db("project_1").collection("orders");
+    
+    
+    
 
-    // Logger middleware
-    app.use((req, res, next) => {
-      const logDetails = `Method: ${req.method}, URL: ${
-        req.originalUrl
-      }, Time: ${new Date().toISOString()}`;
-      console.log(logDetails); // Log to the console
-      next(); // Pass control to the next middleware
-    });
 
     // get lessons
     app.get("/lessons", async (req, res) => {
@@ -72,10 +90,10 @@ async function run() {
     app.post("/cart", async (req, res) => {
       const cartData = req.body;
       const lessonId = cartData.lesson_id;
-      console.log("Lesson ID received:", lessonId);
+      
 
       try {
-        // কোর্স ডেটা ফেচ করে নিশ্চিত করি লেসনটি আছে কিনা
+        
         const course = await courseCollection.findOne({
           _id: new ObjectId(lessonId),
         });
@@ -84,13 +102,13 @@ async function run() {
           return res.status(404).send({ error: "Course not found." });
         }
 
-        // কার্টে চেক করি লেসনটি আগে থেকেই আছে কিনা
+        
         const existingCartItem = await cartCollection.findOne({
           lesson_id: lessonId,
         });
 
         if (existingCartItem) {
-          // যদি লেসনটি কার্টে থাকে, তাহলে শুধু space ১ যোগ করি
+          
           const updateResult = await cartCollection.updateOne(
             { lesson_id: lessonId },
             { $inc: { space: 1 } }
@@ -107,14 +125,14 @@ async function run() {
             cartUpdateResult: updateResult,
           });
         } else {
-          // যদি লেসনটি কার্টে না থাকে, নতুন ডাটা ইনসার্ট করি এবং স্পেস ১ সেট করি
+          
           const newCartItem = {
             lesson_id: lessonId,
             image: cartData.image,
             subject: cartData.subject,
             location: cartData.location,
             price: cartData.price,
-            space: 1, // নতুন স্পেস মান ১
+            space: 1, 
           };
 
           const insertResult = await cartCollection.insertOne(newCartItem);
@@ -148,23 +166,23 @@ async function run() {
       const id = req.params.id;
 
       try {
-        // কার্ট থেকে ডিলিট করার আগে ডকুমেন্টটি রিট্রিভ করুন
+        
         const cartItem = await cartCollection.findOne({ lesson_id: id });
 
         if (!cartItem) {
           return res.status(404).send({ error: "Cart item not found." });
         }
 
-        const spaceToAdd = cartItem.space || 0; // রিট্রিভ করা স্পেসের মান
+        const spaceToAdd = cartItem.space || 0; 
 
-        // কার্ট থেকে ডকুমেন্ট ডিলিট করুন
+        
         const result = await cartCollection.deleteOne({ lesson_id: id });
 
         if (result.deletedCount > 0) {
-          // কোর্স কালেকশনে স্পেস আপডেট করুন
+          
           const updateResult = await courseCollection.updateOne(
             { _id: new ObjectId(id) },
-            { $inc: { space: spaceToAdd } } // স্পেস যোগ করুন
+            { $inc: { space: spaceToAdd } } 
           );
 
           res.send({
